@@ -1,5 +1,6 @@
 package net.runelite.client.plugins.statcollector;
 
+import com.google.inject.Provides;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -9,7 +10,9 @@ import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Client;
 import net.runelite.api.GameState;
+import net.runelite.api.events.ConfigChanged;
 import net.runelite.api.events.FocusChanged;
+import net.runelite.client.config.ConfigManager;
 import net.runelite.client.eventbus.EventBus;
 import net.runelite.client.game.XpDropEvent;
 import net.runelite.client.input.KeyManager;
@@ -45,6 +48,9 @@ public class StatCollectorPlugin<U> extends Plugin
 	@Inject
 	private EventBus eventBus;
 
+	@Inject
+	private StatCollectorConfig statCollectorConfig;
+
 	private StatMouseListener mouseListener = new StatMouseListener(this);
 
 	private StatKeyListener keyListener = new StatKeyListener(this);
@@ -62,16 +68,28 @@ public class StatCollectorPlugin<U> extends Plugin
 	@Getter
 	private int isHuman; // 0 is human, 1 is bot
 
+	@Provides
+	StatCollectorConfig getConfig(ConfigManager configManager)
+	{
+		return configManager.getConfig(StatCollectorConfig.class);
+	}
+
 	@Override
 	protected void startUp()
 	{
 		collectData = true;
 		isHuman = 0;
-		dynamoLib = new DynamoLib();
+		dynamoLib = new DynamoLib(statCollectorConfig.id(), statCollectorConfig.secret());
 		eventBus.subscribe(FocusChanged.class, this, this::onFocusChanged);
 		eventBus.subscribe(XpDropEvent.class, this, this::onXpDrop);
+		eventBus.subscribe(ConfigChanged.class, this, this::onConfigChanged);
 		mouseManager.registerMouseListener(mouseListener);
 		keyManager.registerKeyListener(keyListener);
+	}
+
+	private <T> void onConfigChanged(T t)
+	{
+		dynamoLib = new DynamoLib(statCollectorConfig.id(), statCollectorConfig.secret());
 	}
 
 	private void onXpDrop(XpDropEvent event)

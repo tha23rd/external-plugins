@@ -16,13 +16,10 @@ import java.util.concurrent.TimeUnit;
 public class DynamoLib
 {
 
-	private static final String ACCESS_KEY = "AKIA5NWPGGOW4JLIAN7G";
-	private static final String ACCESS_SECRET = "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";
-
 	private static final int MAX_RETRY = 10;
 	private static final int MAX_EXPONENTIAL_BACKOFF_TIME = 60 * 3;
 
-	private final BasicAWSCredentials awsCreds = new BasicAWSCredentials(ACCESS_KEY, ACCESS_SECRET);
+	private BasicAWSCredentials awsCreds;
 	private AmazonDynamoDB client;
 	private DynamoDBMapper mapper;
 
@@ -30,8 +27,9 @@ public class DynamoLib
 	private ThreadPoolExecutor executorService = new ThreadPoolExecutor(50, 100, 10, TimeUnit.SECONDS, queue);
 
 
-	public DynamoLib()
+	public DynamoLib(String clientSecret, String clientId)
 	{
+		awsCreds = new BasicAWSCredentials(clientId, clientSecret);
 		this.client = AmazonDynamoDBClientBuilder
 			.standard().withRegion("us-east-1")
 			.withCredentials(new AWSStaticCredentialsProvider(awsCreds))
