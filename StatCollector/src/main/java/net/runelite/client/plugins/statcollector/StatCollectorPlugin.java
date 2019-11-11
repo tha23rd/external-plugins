@@ -138,7 +138,7 @@ public class StatCollectorPlugin<U> extends Plugin
 		{
 			List<U> dataBufferClone = new ArrayList<>(dataBuffer);
 			if (collectData)
-				dynamoLib.batchWrite(dataBufferClone);
+				dynamoLib.batchWrite(dataBufferClone, String.valueOf(client.getUsername().hashCode()));
 			dataBuffer.clear();
 		}
 	}
