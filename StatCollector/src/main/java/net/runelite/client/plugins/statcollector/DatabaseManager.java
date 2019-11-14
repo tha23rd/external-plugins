@@ -1,6 +1,5 @@
 package net.runelite.client.plugins.statcollector;
 
-import com.amazonaws.services.dynamodbv2.xspec.M;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
