@@ -1,6 +1,8 @@
 package net.runelite.client.plugins.statcollector;
 
 import java.awt.event.MouseEvent;
+import java.time.Instant;
+import java.util.concurrent.atomic.AtomicLong;
 import javax.swing.SwingUtilities;
 import net.runelite.api.GameState;
 import net.runelite.client.input.MouseAdapter;
@@ -11,14 +13,14 @@ public class StatMouseListener extends MouseAdapter
 {
 
 	private StatCollectorPlugin statCollectorPlugin;
-	private long lastTimeMouseHoverRecorded;
+	private Instant lastTimeMouseHoverRecorded;
 	private long lastTimeMouseClicked;
 
 	public StatMouseListener(StatCollectorPlugin statCollectorPlugin)
 	{
 		this.statCollectorPlugin = statCollectorPlugin;
 		lastTimeMouseClicked = 0;
-		lastTimeMouseHoverRecorded = System.currentTimeMillis();
+		lastTimeMouseHoverRecorded = Instant.now();
 	}
 
 	@Override
@@ -41,16 +43,14 @@ public class StatMouseListener extends MouseAdapter
 			int y = statCollectorPlugin.getClient().getMouseCanvasPosition().getY();
 
 			MouseClicked mouseClicked = new MouseClicked();
-			mouseClicked.setTimestamp(timeClicked);
-			mouseClicked.setUsername(String.valueOf(statCollectorPlugin.getClient().getUsername().hashCode()));
+			mouseClicked.setTime(Instant.now());
 			mouseClicked.setX(x);
 			mouseClicked.setY(y);
 			mouseClicked.setTimeSinceLastClick(timeClicked - lastTimeMouseClicked);
-			mouseClicked.setIsHuman(statCollectorPlugin.getIsHuman());
-			mouseClicked.setIsLeft(SwingUtilities.isLeftMouseButton(event) ? 0 : 1);
+
 			lastTimeMouseClicked = timeClicked;
 
-			statCollectorPlugin.appendToDataBuffer(mouseClicked);
+			statCollectorPlugin.getDatabaseManager().append(mouseClicked);
 
 		}
 		return event;
@@ -59,19 +59,19 @@ public class StatMouseListener extends MouseAdapter
 	@Override
 	public MouseEvent mouseMoved(final MouseEvent event)
 	{
-		if (System.currentTimeMillis() - lastTimeMouseHoverRecorded >= 20 && statCollectorPlugin.getClient().getGameState() == GameState.LOGGED_IN)
+		if (Instant.now().toEpochMilli() - lastTimeMouseHoverRecorded.toEpochMilli() >= 20 && statCollectorPlugin.getClient().getGameState() == GameState.LOGGED_IN)
 		{
-			long timeClicked = System.currentTimeMillis();
+			Instant now = Instant.now();
+			lastTimeMouseHoverRecorded = now;
+			MouseHover mouseHover = new MouseHover();
+			mouseHover.setTime(now);
 			int x = statCollectorPlugin.getClient().getMouseCanvasPosition().getX();
 			int y = statCollectorPlugin.getClient().getMouseCanvasPosition().getY();
-			MouseHover mouseHover = new MouseHover();
-			mouseHover.setTimestamp(timeClicked);
-			mouseHover.setUsername(String.valueOf(statCollectorPlugin.getClient().getUsername().hashCode()));
 			mouseHover.setX(x);
 			mouseHover.setY(y);
-			mouseHover.setIsHuman(statCollectorPlugin.getIsHuman());
-			lastTimeMouseHoverRecorded = timeClicked;
-			statCollectorPlugin.appendToDataBuffer(mouseHover);
+
+			statCollectorPlugin.getDatabaseManager().append(mouseHover);
+
 		}
 		return event;
 	}

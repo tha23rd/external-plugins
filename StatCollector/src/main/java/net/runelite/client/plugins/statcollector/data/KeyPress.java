@@ -1,13 +1,11 @@
 package net.runelite.client.plugins.statcollector.data;
 
-import com.amazonaws.services.dynamodbv2.datamodeling.DynamoDBAttribute;
-import com.amazonaws.services.dynamodbv2.datamodeling.DynamoDBTable;
+import java.time.Instant;
 import lombok.Data;
 
 @Data
-@DynamoDBTable(tableName = "KeyPresses")
-public class KeyPress extends AbstractData
+public class KeyPress
 {
-	@DynamoDBAttribute(attributeName = "keyCode")
 	private int keyCode;
+	private Instant time;
 }

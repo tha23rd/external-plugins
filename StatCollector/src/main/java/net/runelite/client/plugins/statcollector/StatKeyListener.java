@@ -1,6 +1,7 @@
 package net.runelite.client.plugins.statcollector;
 
 import java.awt.event.KeyEvent;
+import java.time.Instant;
 import net.runelite.api.GameState;
 import net.runelite.client.input.KeyListener;
 import net.runelite.client.plugins.statcollector.data.KeyPress;
@@ -9,9 +10,11 @@ public class StatKeyListener implements KeyListener
 {
 
 	private StatCollectorPlugin statCollectorPlugin;
+	private Instant lastKeyPress;
 
 	public StatKeyListener(StatCollectorPlugin statCollectorPlugin)
 	{
+		lastKeyPress = Instant.now();
 		this.statCollectorPlugin = statCollectorPlugin;
 	}
 
@@ -26,13 +29,16 @@ public class StatKeyListener implements KeyListener
 	{
 		if (statCollectorPlugin.getClient().getGameState() == GameState.LOGGED_IN && statCollectorPlugin.isInFocus())
 		{
-			KeyPress keyPress = new KeyPress();
-			keyPress.setIsHuman(statCollectorPlugin.getIsHuman());
-			keyPress.setTimestamp(System.currentTimeMillis());
-			keyPress.setUsername(String.valueOf(statCollectorPlugin.getClient().getUsername().hashCode()));
-			keyPress.setKeyCode(e.getKeyCode());
+			if (Instant.now().toEpochMilli() - lastKeyPress.toEpochMilli() >= 20)
+			{
+				Instant now = Instant.now();
+				lastKeyPress = now;
+				KeyPress keyPress = new KeyPress();
+				keyPress.setTime(now);
+				keyPress.setKeyCode(e.getKeyCode());
 
-			statCollectorPlugin.appendToDataBuffer(keyPress);
+				statCollectorPlugin.getDatabaseManager().append(keyPress);
+			}
 		}
 	}
 

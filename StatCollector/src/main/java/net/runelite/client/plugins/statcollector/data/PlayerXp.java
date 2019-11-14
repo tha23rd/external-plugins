@@ -1,15 +1,14 @@
 package net.runelite.client.plugins.statcollector.data;
 
-import com.amazonaws.services.dynamodbv2.datamodeling.DynamoDBAttribute;
-import com.amazonaws.services.dynamodbv2.datamodeling.DynamoDBTable;
+import java.time.Instant;
 import lombok.Data;
 
-@DynamoDBTable(tableName = "PlayerXp")
 @Data
-public class PlayerXp extends AbstractData
+public class PlayerXp
 {
-	@DynamoDBAttribute(attributeName = "skill")
 	private String skill;
-	@DynamoDBAttribute(attributeName = "xpGainedAmount")
+
 	private int xpGainedAmount;
+
+	private Instant time;
 }

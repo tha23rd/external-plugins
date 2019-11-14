@@ -1,6 +1,8 @@
 package net.runelite.client.plugins.statcollector;
 
+import com.google.common.collect.Lists;
 import com.google.inject.Provides;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -10,11 +12,14 @@ import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Client;
 import net.runelite.api.GameState;
+import net.runelite.api.events.ConfigChanged;
 import net.runelite.api.events.FocusChanged;
 
+import net.runelite.api.events.GameStateChanged;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.eventbus.EventBus;
-import net.runelite.client.events.ConfigChanged;
+
+import net.runelite.client.events.SessionClose;
 import net.runelite.client.game.XpDropEvent;
 import net.runelite.client.input.KeyManager;
 import net.runelite.client.input.MouseManager;
@@ -22,6 +27,7 @@ import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
 import net.runelite.client.plugins.PluginType;
 import net.runelite.client.plugins.statcollector.data.FocusChange;
+import net.runelite.client.plugins.statcollector.data.PlayerInfo;
 import net.runelite.client.plugins.statcollector.data.PlayerXp;
 
 @PluginDescriptor(
@@ -56,18 +62,21 @@ public class StatCollectorPlugin<U> extends Plugin
 
 	private StatKeyListener keyListener = new StatKeyListener(this);
 
-	@Getter
-	private DynamoLib dynamoLib;
-
 	private List<U> dataBuffer = Collections.synchronizedList(new ArrayList<>());
 
 	private boolean collectData;
+
+	@Getter
+	private PlayerInfo playerInfo;
 
 	@Getter
 	private boolean isInFocus;
 
 	@Getter
 	private int isHuman; // 0 is human, 1 is bot
+
+	@Getter
+	private DatabaseManager databaseManager;
 
 	@Provides
 	StatCollectorConfig getConfig(ConfigManager configManager)
@@ -78,33 +87,59 @@ public class StatCollectorPlugin<U> extends Plugin
 	@Override
 	protected void startUp()
 	{
-		collectData = true;
+		collectData = false;
 		isHuman = 0;
-		dynamoLib = new DynamoLib(statCollectorConfig.id(), statCollectorConfig.secret());
 		eventBus.subscribe(FocusChanged.class, this, this::onFocusChanged);
 		eventBus.subscribe(XpDropEvent.class, this, this::onXpDrop);
 		eventBus.subscribe(ConfigChanged.class, this, this::onConfigChanged);
+		eventBus.subscribe(GameStateChanged.class, this, this::onGameStateChanged);
+		eventBus.subscribe(SessionClose.class, this, this::onSessionClose);
 		mouseManager.registerMouseListener(mouseListener);
 		keyManager.registerKeyListener(keyListener);
+		databaseManager = new DatabaseManager(statCollectorConfig.id(), statCollectorConfig.secret(), this);
 	}
 
-	private <T> void onConfigChanged(T t)
+	private <T> void onSessionClose(T t)
 	{
-		dynamoLib = new DynamoLib(statCollectorConfig.id(), statCollectorConfig.secret());
+		databaseManager.saveAll();
+	}
+
+	private void onGameStateChanged(GameStateChanged gameStateChanged)
+	{
+		if (client.getGameState() == GameState.LOGGED_IN)
+		{
+			PlayerInfo playerInfo = new PlayerInfo();
+			playerInfo.setUsername(String.valueOf(client.getUsername().hashCode()));
+			playerInfo.setIsHuman(isHuman);
+
+			this.playerInfo = playerInfo;
+		}
+
+		if (client.getGameState() == GameState.LOGIN_SCREEN && playerInfo != null)
+		{
+			databaseManager.saveAll();
+		}
+	}
+
+	private void onConfigChanged(ConfigChanged event)
+	{
+		if (!"statcollector".equals(event.getGroup()))
+		{
+			return;
+		}
+		databaseManager = new DatabaseManager(statCollectorConfig.id(), statCollectorConfig.secret(), this);
 	}
 
 	private void onXpDrop(XpDropEvent event)
 	{
-		if (client.getGameState() == GameState.LOGGED_IN)
+		if (client.getGameState() == GameState.LOGGED_IN && event.getExp() != 0)
 		{
 			PlayerXp playerXp = new PlayerXp();
 			playerXp.setXpGainedAmount(event.getExp());
 			playerXp.setSkill(event.getSkill().getName());
-			playerXp.setTimestamp(System.currentTimeMillis());
-			playerXp.setUsername(String.valueOf(client.getUsername().hashCode()));
-			playerXp.setIsHuman(isHuman);
+			playerXp.setTime(Instant.now());
 
-			appendToDataBuffer((U) playerXp);
+			databaseManager.append(playerXp);
 		}
 	}
 
@@ -114,33 +149,18 @@ public class StatCollectorPlugin<U> extends Plugin
 		if (client.getGameState() == GameState.LOGGED_IN)
 		{
 			FocusChange focusChange = new FocusChange();
-			focusChange.setTimestamp(System.currentTimeMillis());
-			focusChange.setUsername(String.valueOf(client.getUsername().hashCode()));
+			focusChange.setTime(Instant.now());
 			focusChange.setFocus(event.isFocused() ? 1 : 0);
-			focusChange.setIsHuman(isHuman);
 
-			appendToDataBuffer((U) focusChange);
+			databaseManager.append(focusChange);
 		}
 	}
 
 	@Override
 	protected void shutDown()
 	{
+		databaseManager.saveAll();
 		eventBus.unregister(this);
 		mouseManager.unregisterMouseListener(mouseListener);
 	}
-
-	public void appendToDataBuffer(U dataItem)
-	{
-		dataBuffer.add(dataItem);
-		System.out.println("New item added to buffer, size: " + dataBuffer.size());
-		if (dataBuffer.size() == 25)
-		{
-			List<U> dataBufferClone = new ArrayList<>(dataBuffer);
-			if (collectData)
-				dynamoLib.batchWrite(dataBufferClone, String.valueOf(client.getUsername().hashCode()));
-			dataBuffer.clear();
-		}
-	}
-
 }
