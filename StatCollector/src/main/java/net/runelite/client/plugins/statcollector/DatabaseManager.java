@@ -6,6 +6,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import net.runelite.client.plugins.statcollector.data.FocusChange;
@@ -64,7 +65,7 @@ public class DatabaseManager
 		}
 		this.username = user;
 		this.password = password;
-		System.out.println("Attempting to create connection to: " + dbPrefix + host + dbName);
+		System.out.println("Attempting to create connection to: " + host);
 		jdbi = Jdbi.create(dbPrefix + host + dbName, user, password);
 		jdbi.installPlugin(new SqlObjectPlugin());
 		mouseHoversDao = jdbi.onDemand(MouseHoversDao.class);
@@ -75,6 +76,56 @@ public class DatabaseManager
 		playerSessionDao = jdbi.onDemand(PlayerSessionDao.class);
 
 		this.statCollectorPlugin = statCollectorPlugin;
+	}
+
+	public void saveAllShutDown()
+	{
+		System.out.println("Saving all on shutdown");
+		CountDownLatch latch = new CountDownLatch(6);
+		executorService.submit(() -> {
+			mouseClickedDao.bulkInsert(statCollectorPlugin.getPlayerInfo(), mouseClicks.toArray(new MouseClicked[0]));
+			latch.countDown();
+		});
+		executorService.submit(() -> {
+			mouseHoversDao.bulkInsert(statCollectorPlugin.getPlayerInfo(), mouseHovers.toArray(new MouseHover[0]));
+			latch.countDown();
+		});
+		executorService.submit(() -> {
+			System.out.println("Submitting playersession");
+			playerSessionDao.bulkInsert(statCollectorPlugin.getPlayerInfo(), statCollectorPlugin.getPlayerSession());
+			System.out.println("Player session done!");
+			latch.countDown();
+		});
+		executorService.submit(() -> {
+			focusChangeDao.bulkInsert(statCollectorPlugin.getPlayerInfo(), focusChanges.toArray(new FocusChange[0]));
+			latch.countDown();
+		});
+		executorService.submit(() -> {
+			playerXpDao.bulkInsert(statCollectorPlugin.getPlayerInfo(), playerXps.toArray(new PlayerXp[0]));
+			latch.countDown();
+		});
+		executorService.submit(() -> {
+			keyPressDao.bulkInsert(statCollectorPlugin.getPlayerInfo(), keyPresses.toArray(new KeyPress[0]));
+			latch.countDown();
+		});
+		try
+		{
+			while (true)
+			{
+				System.out.println(latch.getCount());
+				if (latch.getCount() <= 0)
+				{
+					break;
+				}
+				Thread.sleep(500);
+			}
+			latch.await();
+			System.out.println("All items saved");
+		}
+		catch (InterruptedException e)
+		{
+			e.printStackTrace();
+		}
 	}
 
 	public void saveAll()

@@ -19,6 +19,7 @@ import net.runelite.api.events.GameStateChanged;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.eventbus.EventBus;
 
+
 import net.runelite.client.events.ConfigChanged;
 import net.runelite.client.events.SessionClose;
 import net.runelite.client.game.XpDropEvent;
@@ -105,11 +106,23 @@ public class StatCollectorPlugin<U> extends Plugin
 		keyManager.registerKeyListener(keyListener);
 		System.out.println(statCollectorConfig.host());
 		databaseManager = new DatabaseManager(statCollectorConfig.id(), statCollectorConfig.secret(), this, statCollectorConfig.host());
+		Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+			createPlayerSession();
+			databaseManager.saveAll();
+		}));
 	}
 
 	private <T> void onSessionClose(T t)
 	{
 		databaseManager.saveAll();
+	}
+
+	private void createPlayerSession()
+	{
+		PlayerSession playerSession = new PlayerSession();
+		playerSession.setTime(Instant.now());
+		playerSession.setSessionDuration(System.currentTimeMillis() - loginMillis);
+		this.playerSession = playerSession;
 	}
 
 	private void onGameStateChanged(GameStateChanged gameStateChanged)
@@ -126,10 +139,7 @@ public class StatCollectorPlugin<U> extends Plugin
 
 		if (client.getGameState() == GameState.LOGIN_SCREEN && playerInfo != null)
 		{
-			PlayerSession playerSession = new PlayerSession();
-			playerSession.setSessionDuration(System.currentTimeMillis() - loginMillis);
-			playerSession.setTime(Instant.now());
-			this.playerSession = playerSession;
+			createPlayerSession();
 			databaseManager.saveAll();
 			playerInfo = null;
 		}
