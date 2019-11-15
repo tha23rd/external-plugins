@@ -13,11 +13,13 @@ import net.runelite.client.plugins.statcollector.data.KeyPress;
 import net.runelite.client.plugins.statcollector.data.MouseClicked;
 import net.runelite.client.plugins.statcollector.data.MouseHover;
 import net.runelite.client.plugins.statcollector.data.PlayerInfo;
+import net.runelite.client.plugins.statcollector.data.PlayerSession;
 import net.runelite.client.plugins.statcollector.data.PlayerXp;
 import net.runelite.client.plugins.statcollector.data.daos.FocusChangeDao;
 import net.runelite.client.plugins.statcollector.data.daos.KeyPressDao;
 import net.runelite.client.plugins.statcollector.data.daos.MouseClickedDao;
 import net.runelite.client.plugins.statcollector.data.daos.MouseHoversDao;
+import net.runelite.client.plugins.statcollector.data.daos.PlayerSessionDao;
 import net.runelite.client.plugins.statcollector.data.daos.PlayerXpDao;
 import org.jdbi.v3.core.Jdbi;
 import org.jdbi.v3.sqlobject.SqlObjectPlugin;
@@ -38,17 +40,19 @@ public class DatabaseManager
 	private MouseClickedDao mouseClickedDao;
 	private FocusChangeDao focusChangeDao;
 	private KeyPressDao keyPressDao;
+	private PlayerSessionDao playerSessionDao;
 
 	private BlockingQueue<Runnable> queue = new ArrayBlockingQueue<>(50);
 	private ThreadPoolExecutor executorService = new ThreadPoolExecutor(10, 100, 10, TimeUnit.SECONDS, queue);
 
 	private StatCollectorPlugin statCollectorPlugin;
 
-	private String dbURL2 = "jdbc:postgresql://ec2-52-91-233-236.compute-1.amazonaws.com/rs_stats";
+	private String dbPrefix = "jdbc:postgresql://";
+	private String dbName = "/stat-collection";
 	private String username;
 	private String password;
 
-	public DatabaseManager(String user, String password, StatCollectorPlugin statCollectorPlugin)
+	public DatabaseManager(String user, String password, StatCollectorPlugin statCollectorPlugin, String host)
 	{
 		try
 		{
@@ -60,13 +64,15 @@ public class DatabaseManager
 		}
 		this.username = user;
 		this.password = password;
-		jdbi = Jdbi.create(dbURL2, user, password);
+		System.out.println("Attempting to create connection to: " + dbPrefix + host + dbName);
+		jdbi = Jdbi.create(dbPrefix + host + dbName, user, password);
 		jdbi.installPlugin(new SqlObjectPlugin());
 		mouseHoversDao = jdbi.onDemand(MouseHoversDao.class);
 		playerXpDao = jdbi.onDemand(PlayerXpDao.class);
 		mouseClickedDao = jdbi.onDemand(MouseClickedDao.class);
 		focusChangeDao = jdbi.onDemand(FocusChangeDao.class);
 		keyPressDao = jdbi.onDemand(KeyPressDao.class);
+		playerSessionDao = jdbi.onDemand(PlayerSessionDao.class);
 
 		this.statCollectorPlugin = statCollectorPlugin;
 	}
@@ -74,11 +80,54 @@ public class DatabaseManager
 	public void saveAll()
 	{
 		System.out.println("Saving all");
-		mouseClickedDao.bulkInsert(statCollectorPlugin.getPlayerInfo(), mouseClicks.toArray(new MouseClicked[0]));
-		focusChangeDao.bulkInsert(statCollectorPlugin.getPlayerInfo(), focusChanges.toArray(new FocusChange[0]));
-		keyPressDao.bulkInsert(statCollectorPlugin.getPlayerInfo(), keyPresses.toArray(new KeyPress[0]));
-		playerXpDao.bulkInsert(statCollectorPlugin.getPlayerInfo(), playerXps.toArray(new PlayerXp[0]));
-		mouseHoversDao.bulkInsert(statCollectorPlugin.getPlayerInfo(), mouseHovers.toArray(new MouseHover[0]));
+		try
+		{
+			mouseClickedDao.bulkInsert(statCollectorPlugin.getPlayerInfo(), mouseClicks.toArray(new MouseClicked[0]));
+		}
+		catch (Exception e)
+		{
+			e.printStackTrace();
+		}
+		try
+		{
+			focusChangeDao.bulkInsert(statCollectorPlugin.getPlayerInfo(), focusChanges.toArray(new FocusChange[0]));
+		}
+		catch (Exception e)
+		{
+			e.printStackTrace();
+		}
+		try
+		{
+			keyPressDao.bulkInsert(statCollectorPlugin.getPlayerInfo(), keyPresses.toArray(new KeyPress[0]));
+		}
+		catch (Exception e)
+		{
+			e.printStackTrace();
+		}
+		try
+		{
+			playerXpDao.bulkInsert(statCollectorPlugin.getPlayerInfo(), playerXps.toArray(new PlayerXp[0]));
+		}
+		catch (Exception e)
+		{
+			e.printStackTrace();
+		}
+		try
+		{
+			mouseHoversDao.bulkInsert(statCollectorPlugin.getPlayerInfo(), mouseHovers.toArray(new MouseHover[0]));
+		}
+		catch (Exception e)
+		{
+			e.printStackTrace();
+		}
+		try
+		{
+			playerSessionDao.bulkInsert(statCollectorPlugin.getPlayerInfo(), statCollectorPlugin.getPlayerSession());
+		}
+		catch (Exception e)
+		{
+			e.printStackTrace();
+		}
 		mouseClicks.clear();
 		focusChanges.clear();
 		keyPresses.clear();

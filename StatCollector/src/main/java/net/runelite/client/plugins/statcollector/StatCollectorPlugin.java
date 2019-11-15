@@ -12,13 +12,14 @@ import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Client;
 import net.runelite.api.GameState;
-import net.runelite.api.events.ConfigChanged;
+
 import net.runelite.api.events.FocusChanged;
 
 import net.runelite.api.events.GameStateChanged;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.eventbus.EventBus;
 
+import net.runelite.client.events.ConfigChanged;
 import net.runelite.client.events.SessionClose;
 import net.runelite.client.game.XpDropEvent;
 import net.runelite.client.input.KeyManager;
@@ -28,6 +29,7 @@ import net.runelite.client.plugins.PluginDescriptor;
 import net.runelite.client.plugins.PluginType;
 import net.runelite.client.plugins.statcollector.data.FocusChange;
 import net.runelite.client.plugins.statcollector.data.PlayerInfo;
+import net.runelite.client.plugins.statcollector.data.PlayerSession;
 import net.runelite.client.plugins.statcollector.data.PlayerXp;
 
 @PluginDescriptor(
@@ -78,6 +80,11 @@ public class StatCollectorPlugin<U> extends Plugin
 	@Getter
 	private DatabaseManager databaseManager;
 
+	private long loginMillis;
+
+	@Getter
+	private PlayerSession playerSession;
+
 	@Provides
 	StatCollectorConfig getConfig(ConfigManager configManager)
 	{
@@ -96,7 +103,8 @@ public class StatCollectorPlugin<U> extends Plugin
 		eventBus.subscribe(SessionClose.class, this, this::onSessionClose);
 		mouseManager.registerMouseListener(mouseListener);
 		keyManager.registerKeyListener(keyListener);
-		databaseManager = new DatabaseManager(statCollectorConfig.id(), statCollectorConfig.secret(), this);
+		System.out.println(statCollectorConfig.host());
+		databaseManager = new DatabaseManager(statCollectorConfig.id(), statCollectorConfig.secret(), this, statCollectorConfig.host());
 	}
 
 	private <T> void onSessionClose(T t)
@@ -108,6 +116,7 @@ public class StatCollectorPlugin<U> extends Plugin
 	{
 		if (client.getGameState() == GameState.LOGGED_IN)
 		{
+			loginMillis = System.currentTimeMillis();
 			PlayerInfo playerInfo = new PlayerInfo();
 			playerInfo.setUsername(String.valueOf(client.getUsername().hashCode()));
 			playerInfo.setIsHuman(isHuman);
@@ -117,7 +126,12 @@ public class StatCollectorPlugin<U> extends Plugin
 
 		if (client.getGameState() == GameState.LOGIN_SCREEN && playerInfo != null)
 		{
+			PlayerSession playerSession = new PlayerSession();
+			playerSession.setSessionDuration(System.currentTimeMillis() - loginMillis);
+			playerSession.setTime(Instant.now());
+			this.playerSession = playerSession;
 			databaseManager.saveAll();
+			playerInfo = null;
 		}
 	}
 
@@ -127,7 +141,7 @@ public class StatCollectorPlugin<U> extends Plugin
 		{
 			return;
 		}
-		databaseManager = new DatabaseManager(statCollectorConfig.id(), statCollectorConfig.secret(), this);
+		databaseManager = new DatabaseManager(statCollectorConfig.id(), statCollectorConfig.secret(), this, statCollectorConfig.host());
 	}
 
 	private void onXpDrop(XpDropEvent event)

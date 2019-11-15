@@ -28,4 +28,15 @@ public interface StatCollectorConfig extends Config
 	{
 		return "";
 	}
+
+	@ConfigItem(
+		keyName = "host",
+		name = "DB Host",
+		description = "The DB host to connect to",
+		position = 3
+	)
+	default String host()
+	{
+		return "";
+	}
 }
